@@ -23,10 +23,17 @@
  * if their `auto-header-extension` property is enabled, if the extension
  * is part of the RTP caps.
  *
+ * ## Example pipeline
+ * |[
+ * gst-launch-1.0 pulsesrc ! level audio-level-meta=true ! audiconvert !
+ *   rtpL16pay ! application/x-rtp,
+ *     extmap-1=(string)\< \"\", urn:ietf:params:rtp-hdrext:ssrc-audio-level,
+ *     \"vad=on\" \> ! udpsink
+ * ]|
+ *
  * Since: 1.20
  *
  */
-
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -206,12 +213,13 @@ gst_rtp_header_extension_rfc6464_set_caps_from_attributes (GstRTPHeaderExtension
   return TRUE;
 }
 
-static gsize
+static gssize
 gst_rtp_header_extension_rfc6464_write (GstRTPHeaderExtension * ext,
     const GstBuffer * input_meta, GstRTPHeaderExtensionFlags write_flags,
     GstBuffer * output, guint8 * data, gsize size)
 {
   GstAudioLevelMeta *meta;
+  guint level;
 
   g_return_val_if_fail (size >=
       gst_rtp_header_extension_rfc6464_get_max_size (ext, NULL), -1);
@@ -224,10 +232,11 @@ gst_rtp_header_extension_rfc6464_write (GstRTPHeaderExtension * ext,
     return 0;
   }
 
-  if (meta->level > 127) {
-    GST_WARNING_OBJECT (ext, "level from meta is higher than 127: %d",
+  level = meta->level;
+  if (level > 127) {
+    GST_LOG_OBJECT (ext, "level from meta is higher than 127: %d, cropping",
         meta->level);
-    return -1;
+    level = 127;
   }
 
   GST_LOG_OBJECT (ext, "writing ext (level: %d voice: %d)", meta->level,
